@@ -69,7 +69,7 @@ interface StateData {
 }
 
 // Helper function for creating an input box with a back button
-function createInputBoxWithBackButton(options: InputBoxOptions): Promise<string | BackButtonClick | undefined> {
+function createInputBoxWithBackButton(options: InputBoxOptions, hideBackButton?: boolean): Promise<string | BackButtonClick | undefined> {
 	const disposableStore = new DisposableStore();
 	const inputBox = disposableStore.add(window.createInputBox());
 	inputBox.ignoreFocusOut = true;
@@ -78,7 +78,7 @@ function createInputBoxWithBackButton(options: InputBoxOptions): Promise<string 
 	inputBox.prompt = options.prompt;
 	inputBox.placeholder = options.placeHolder;
 	inputBox.value = options.value || '';
-	inputBox.buttons = [QuickInputButtons.Back];
+	inputBox.buttons = hideBackButton ? [] : [QuickInputButtons.Back];
 
 	return new Promise<string | BackButtonClick | undefined>(resolve => {
 		disposableStore.add(inputBox.onDidTriggerButton(button => {
@@ -925,7 +925,7 @@ export class BYOKUIService {
 
 		return result;
 	}
-
+  
 	private async _handleApiModelSelection(state: StateData): Promise<StateResult> {
 		if (!state.selectedProviderRegistry || !state.deploymentUrl || !state.modelApiKey) {
 			throw new Error('Provider, deployment URL, or API key information is missing.');

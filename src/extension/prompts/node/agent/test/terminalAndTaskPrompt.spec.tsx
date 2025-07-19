@@ -8,10 +8,17 @@ import { URI } from '../../../../../util/vs/base/common/uri';
 import { TerminalAndTaskStatePromptElement } from '../../base/terminalAndTaskState';
 
 suite('TerminalAndTaskStatePromptElement', () => {
-	test('Copilot terminals and tasks', async () => {
-		const tasksService: any = {};
+	const tasksService: any = {};
+	tasksService.getTerminalForTask = (task: any) => {
+		if (task.command === 'build') {
+			return { name: 'Terminal 1', id: '1' };
+		} else if (task.command === 'watch') {
+			return { name: 'Terminal 2', id: '2' };
+		}
+		return undefined;
+	};
+	test('Terminals and active tasks', async () => {
 		const terminalService: any = {};
-
 		tasksService.getTasks = () => [[null, [
 			{
 				label: 'npm: build',
@@ -36,12 +43,8 @@ suite('TerminalAndTaskStatePromptElement', () => {
 		tasksService.isTaskActive = () => true;
 
 		terminalService.terminals = [
-			{ name: 'Terminal 1', id: '1' },
-			{ name: 'Terminal 2', id: '2' },
-		];
-		terminalService.getCopilotTerminals = async () => [
-			{ name: 'Terminal 1', id: '1' },
-			{ name: 'Terminal 2', id: '2' },
+			{ name: 'Terminal 1', id: '1', processId: 1234 },
+			{ name: 'Terminal 2', id: '2', processId: 5678 },
 		];
 		terminalService.getLastCommandForTerminal = (term: { id: string }) => {
 			if (term.id === '1') {
@@ -54,20 +57,15 @@ suite('TerminalAndTaskStatePromptElement', () => {
 
 		const prompt = new TerminalAndTaskStatePromptElement({}, tasksService, terminalService);
 		const rendered = await prompt.render();
+
 		const output = typeof rendered === 'string' ? rendered : JSON.stringify(rendered) ?? '';
-		assert(output.includes('Active Tasks:'));
 		assert(output.includes('npm: build'));
 		assert(output.includes('npm: watch'));
 		assert(output.includes('Terminal 1'));
 		assert(output.includes('Terminal 2'));
-		assert(output.includes('npm run build'));
-		assert(output.includes('npm test'));
-		assert(output.includes('/workspace'));
 	});
-	test('Terminals (non-Copilot) and active tasks', async () => {
-		const tasksService: any = {};
+	test('Terminals and inactive tasks', async () => {
 		const terminalService: any = {};
-
 		tasksService.getTasks = () => [[null, [
 			{
 				label: 'npm: build',
@@ -89,13 +87,12 @@ suite('TerminalAndTaskStatePromptElement', () => {
 				group: { isDefault: false, kind: 'test' },
 			},
 		]]];
-		tasksService.isTaskActive = () => true;
+		tasksService.isTaskActive = () => false;
 
 		terminalService.terminals = [
-			{ name: 'Terminal 1', id: '1' },
-			{ name: 'Terminal 2', id: '2' },
+			{ name: 'Terminal 1', id: '1', processId: 1234 },
+			{ name: 'Terminal 2', id: '2', processId: 5678 },
 		];
-		terminalService.getCopilotTerminals = async () => [];
 		terminalService.getLastCommandForTerminal = (term: { id: string }) => {
 			if (term.id === '1') {
 				return { commandLine: 'npm run build', cwd: '/workspace', exitCode: 0 };
@@ -109,12 +106,12 @@ suite('TerminalAndTaskStatePromptElement', () => {
 		const rendered = await prompt.render();
 
 		const output = typeof rendered === 'string' ? rendered : JSON.stringify(rendered) ?? '';
-		assert(output.includes('Active Tasks:'));
 		assert(output.includes('npm: build'));
 		assert(output.includes('npm: watch'));
-		assert(output.includes('No active Copilot terminals found.'));
+		assert(output.includes('Terminal 1'));
+		assert(output.includes('Terminal 2'));
 	});
-	test('Copilot terminals and no active tasks', async () => {
+	test('Terminals and no active tasks', async () => {
 
 		const tasksService: any = {};
 		const terminalService: any = {};
@@ -133,10 +130,6 @@ suite('TerminalAndTaskStatePromptElement', () => {
 			{ name: 'Terminal 1', id: '1' },
 			{ name: 'Terminal 2', id: '2' },
 		];
-		terminalService.getCopilotTerminals = async () => [
-			{ name: 'Terminal 1', id: '1' },
-			{ name: 'Terminal 2', id: '2' },
-		];
 		terminalService.getLastCommandForTerminal = (term: any) => {
 			if (term.id === '1') {
 				return { commandLine: 'npm run build', cwd: '/workspace', exitCode: 0 };
@@ -151,25 +144,21 @@ suite('TerminalAndTaskStatePromptElement', () => {
 
 		// Convert rendered output to string for assertions
 		const output = typeof rendered === 'string' ? rendered : JSON.stringify(rendered) ?? '';
-		assert(output.includes('No active tasks found.'));
+		assert(output.includes('No tasks found.'));
 		assert(output.includes('Terminal 1'));
 		assert(output.includes('Terminal 2'));
 		assert(output.includes('npm run build'));
 		assert(output.includes('npm test'));
 		assert(output.includes('/workspace'));
 	});
-	test('Neither Copilot terminals nor active tasks', async () => {
+	test('Neither terminals nor active tasks', async () => {
 		const tasksService: any = {};
 		const terminalService: any = {};
 
 		tasksService.getTasks = () => [];
 		tasksService.isTaskActive = () => true;
 
-		terminalService.terminals = [
-			{ name: 'Terminal 1', id: '1' },
-			{ name: 'Terminal 2', id: '2' },
-		];
-		terminalService.getCopilotTerminals = async () => [];
+		terminalService.terminals = [];
 		terminalService.getLastCommandForTerminal = (term: any) => {
 			return undefined;
 		};
@@ -178,6 +167,6 @@ suite('TerminalAndTaskStatePromptElement', () => {
 		const rendered = await prompt.render();
 
 		const output = typeof rendered === 'string' ? rendered : JSON.stringify(rendered) ?? '';
-		assert(output.includes('No active tasks or Copilot terminals found.'));
+		assert(output.includes('No tasks or terminals found.'));
 	});
 });

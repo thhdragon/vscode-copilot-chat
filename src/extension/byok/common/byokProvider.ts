@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { ChatResponseProviderMetadata, Disposable } from 'vscode';
+import type { Disposable, LanguageModelChatInformation } from 'vscode';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
@@ -76,10 +76,10 @@ export function isNoAuthConfig(config: BYOKModelConfig): config is BYOKNoAuthMod
 	return !('apiKey' in config) && !('deploymentUrl' in config);
 }
 
-export function chatModelInfoToProviderMetadata(chatModelInfo: IChatModelInformation): ChatResponseProviderMetadata {
+export function chatModelInfoToProviderMetadata(chatModelInfo: IChatModelInformation): LanguageModelChatInformation {
 	const outputTokens = chatModelInfo.capabilities.limits?.max_output_tokens ?? 4096;
 	const inputTokens = chatModelInfo.capabilities.limits?.max_prompt_tokens ?? ((chatModelInfo.capabilities.limits?.max_context_window_tokens || 64000) - outputTokens);
-
+  
 	// Calculate agentMode capability using the same logic as built-in models
 	// This enables Edit Mode v2 (chat.edits2.enabled) for custom models that support tool calling
 	const supportsToolCalls = chatModelInfo.capabilities.supports.tool_calls;
@@ -88,9 +88,7 @@ export function chatModelInfoToProviderMetadata(chatModelInfo: IChatModelInforma
 
 	const result = {
 		family: chatModelInfo.capabilities.family,
-		cost: chatModelInfo.capabilities.family, // This is a bit odd, but this is what renders in the grey side text
 		description: localize('byok.model.description', '{0} is contributed via the {1} provider.', chatModelInfo.name, chatModelInfo.capabilities.family),
-		vendor: 'copilot-byok',
 		version: '1.0.0',
 		maxOutputTokens: outputTokens,
 		maxInputTokens: inputTokens,
@@ -98,9 +96,10 @@ export function chatModelInfoToProviderMetadata(chatModelInfo: IChatModelInforma
 		isUserSelectable: true,
 		capabilities: {
 			agentMode: agentModeEnabled,
-			toolCalling: supportsToolCalls,
+			toolCalling: chatModelInfo.capabilities.supports.tool_calls,
 			vision: chatModelInfo.capabilities.supports.vision,
-		}
+		},
+		auth: true
 	};
 
 	return result;
@@ -143,6 +142,27 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 	};
 
 	return result;
+}
+
+export function byokKnownModelsToAPIInfo(providerName: string, knownModels: BYOKKnownModels | undefined): LanguageModelChatInformation[] {
+	if (!knownModels) {
+		return [];
+	}
+	return Object.entries(knownModels).map(([id, capabilities]) => {
+		return {
+			id,
+			name: capabilities.name,
+			version: '1.0.0',
+			maxOutputTokens: capabilities.maxOutputTokens,
+			maxInputTokens: capabilities.maxInputTokens,
+			family: providerName,
+			description: `${capabilities.name} is contributed via the ${providerName} provider.`,
+			capabilities: {
+				toolCalling: capabilities.toolCalling,
+				vision: capabilities.vision
+			},
+		};
+	});
 }
 
 export function isBYOKEnabled(copilotToken: Omit<CopilotToken, "token">, capiClientService: ICAPIClientService): boolean {
